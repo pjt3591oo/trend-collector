@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import time
+from threading import Lock, local
 from datetime import datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
@@ -29,10 +30,26 @@ class HTTP:
         self.interval = float(settings.get('request_interval', 1.0))
         if self.timeout <= 0 or self.retries < 0 or self.interval < 0:
             raise ValueError('Invalid HTTP timeout, retries, or request interval')
-        self.opener = build_opener(SafeRedirect())
+        self._local = local()
+        self._hosts_guard = Lock()
+        self._host_locks = {}
         self.last: dict[str, float] = {}
 
+    @property
+    def opener(self):
+        if not hasattr(self._local, 'opener'):
+            self._local.opener = build_opener(SafeRedirect())
+        return self._local.opener
+
     def get(self, url: str, headers: dict | None = None, payload: dict | None = None) -> bytes:
+        host = urlsplit(url).netloc
+        with self._hosts_guard:
+            host_lock = self._host_locks.setdefault(host, Lock())
+        # Same-host requests (including retries) are serialized; other hosts proceed independently.
+        with host_lock:
+            return self._get(url, headers, payload)
+
+    def _get(self, url: str, headers: dict | None = None, payload: dict | None = None) -> bytes:
         host = urlsplit(url).netloc
         for attempt in range(self.retries + 1):
             time.sleep(max(0, self.interval - (time.monotonic() - self.last.get(host, 0))))

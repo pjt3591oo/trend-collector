@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import sys
 from pathlib import Path
 import tomllib
@@ -36,6 +37,7 @@ from src.sources.huggingface import collect as huggingface
 from src.sources import COLLECTORS, SOURCES
 from src.sources import CollectionRequest, HTTPClient, Source, create_sources
 from src.enrichment import Enricher, EPSSEnricher
+from src.collection import collect_source
 
 
 def positive_int(value):
@@ -75,6 +77,9 @@ def main(argv=None, *, sources: Mapping[str, Source] | None = None,
         if not 1 <= limit <= 500 or not 1 <= days <= 365:
             parser.error('limit must be 1..500, days must be 1..365')
         request = CollectionRequest(limit, days)
+        max_workers = settings.get('max_workers', 4)
+        if type(max_workers) is not int or not 1 <= max_workers <= 32:
+            parser.error('collector.max_workers must be an integer in 1..32')
         epss_enabled = config.get('enrichment', {}).get('epss', {}).get('enabled', False)
         if http is None and (sources is None or (epss_enabled and enricher is None)):
             http = HTTP(settings)
@@ -92,25 +97,18 @@ def main(argv=None, *, sources: Mapping[str, Source] | None = None,
     run_id = datetime.now(UTC).strftime('%Y%m%dT%H%M%S') + '_' + uuid.uuid4().hex[:12]
     rows = []
     statuses = {}
-    for source in selected:
-        records = {}
-        status = 'ok'
-        message = ''
-        try:
-            for item in sources[source].collect(request):
-                record = item.record()
-                records[record['external_id']] = record
-        except Skipped as exc:
-            status, message = 'skipped', str(exc)
-        except Exception as exc:
-            # Keep previously yielded items when a later page/request fails.
-            status = 'partial' if records else 'error'
-            message = str(exc) if isinstance(exc, CollectionError) else f'{type(exc).__name__}: invalid response or configuration'
-        if status == 'ok' and not records:
-            status, message = 'empty', 'No items returned; check window, filters, or source availability'
-        rows.extend(records.values())
-        statuses[source] = {'status': status, 'count': len(records), 'message': message}
-        print(f'{source:14} {status:8} {len(records):4} {message}', flush=True)
+    results = {}
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(selected)), thread_name_prefix='collector') as executor:
+        futures = {executor.submit(collect_source, sources[name], request): name for name in selected}
+        for future in as_completed(futures):
+            name = futures[future]
+            results[name] = future.result()
+            _, result = results[name]
+            print(f"{name:14} {result['status']:8} {result['count']:4} {result['message']}", flush=True)
+    # Deterministic exports; workers never write SQLite or shared result lists.
+    for name in selected:
+        source_rows, statuses[name] = results[name]
+        rows.extend(source_rows)
     enrichment_status = {'status': 'disabled'}
     if enricher is not None:
         try:
@@ -125,6 +123,7 @@ def main(argv=None, *, sources: Mapping[str, Source] | None = None,
                 'sources': statuses, 'count': len(rows), 'limit_per_source': limit,
                 'enrichment': {'epss': enrichment_status},
                 'legacy_days_option': days,
+                'max_workers': min(max_workers, len(selected)),
                 'notes': ['Rank/metrics are source-specific; do not sum across sources.',
                           'Sources collect current feed/list snapshots; the legacy --days option is ignored.',
                           'A shared group_id means the same normalized URL, not independent corroboration.',

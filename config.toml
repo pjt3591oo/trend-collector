@@ -1,5 +1,6 @@
 [collector]
 limit = 20
+max_workers = 4 # Concurrent sources; 1 for sequential collection, maximum 32
 days = 7 # Legacy option; current HTML/feed snapshots ignore days
 output_dir = "data"
 timeout = 20
