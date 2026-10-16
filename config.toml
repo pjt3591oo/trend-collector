@@ -1,0 +1,59 @@
+[collector]
+limit = 20
+days = 7 # Legacy option; current HTML/feed snapshots ignore days
+output_dir = "data"
+timeout = 20
+retries = 2
+request_interval = 1.0 # Minimum interval per host, seconds
+user_agent = "TrendCollector/1.0 (personal trend research)"
+
+[sources.geeknews]
+enabled = true
+
+[sources.producthunt]
+enabled = true # Public homepage HTML; no token required
+
+[sources.hackernews]
+enabled = true
+feed = "top" # top / new / best / ask / show
+
+[sources.reddit]
+enabled = true # Public HTML; HTTP access restrictions may cause error
+subreddits = ["SaaS", "smallbusiness", "SideProject"]
+sort = "new" # new / hot / top
+time_filter = "week" # Used only when sort = "top"
+
+[sources.github]
+enabled = true
+since = "daily" # daily / weekly / monthly
+language = "" # e.g. python, typescript
+
+[sources.google_trends]
+enabled = true
+geo = "KR" # Country; use US for United States
+
+[sources.indiehackers]
+enabled = true
+
+[sources.disquiet]
+enabled = true
+
+[sources.huggingface]
+enabled = true
+
+[sources.bleepingcomputer]
+enabled = true
+
+[sources.cisa_kev]
+enabled = true
+
+[sources.github_advisories]
+enabled = true
+# Optional: ecosystem = "pip", severity = "critical"
+# Public HTML; no GitHub token required.
+
+[sources.kisa]
+enabled = true
+
+[enrichment.epss]
+enabled = true # CVE risk enrichment; failures keep source records and appear in manifest

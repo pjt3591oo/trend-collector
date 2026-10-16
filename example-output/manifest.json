@@ -1,0 +1,61 @@
+{
+  "run_id": "20261016T225121_3b34dce021c9",
+  "started_at": "2026-10-16T22:51:21.865081+00:00",
+  "finished_at": "2026-10-16T22:51:31.914353+00:00",
+  "sources": {
+    "geeknews": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    },
+    "producthunt": {
+      "status": "skipped",
+      "count": 0,
+      "message": "Set PRODUCTHUNT_TOKEN to a Product Hunt API access token"
+    },
+    "hackernews": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    },
+    "reddit": {
+      "status": "skipped",
+      "count": 0,
+      "message": "Set REDDIT_ACCESS_TOKEN after Reddit Data API approval"
+    },
+    "github": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    },
+    "google_trends": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    },
+    "indiehackers": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    },
+    "disquiet": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    },
+    "huggingface": {
+      "status": "ok",
+      "count": 3,
+      "message": ""
+    }
+  },
+  "count": 21,
+  "limit_per_source": 3,
+  "producthunt_lookback_days": 7,
+  "notes": [
+    "Rank/metrics are source-specific; do not sum across sources.",
+    "Only Product Hunt uses --days. Other sources are current feed/list snapshots.",
+    "A shared group_id means the same normalized URL, not independent corroboration.",
+    "GeekNews RSS does not currently expose original article URLs."
+  ]
+}

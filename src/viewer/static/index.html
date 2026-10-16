@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Trend Atlas · 수집 데이터</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<aside class="sidebar"><a class="brand" href="/" aria-label="Trend Atlas 홈"><span class="logo">↗</span><span>trend<span class="brand-light">atlas</span><small>COLLECTION EXPLORER</small></span></a>
+<div class="nav-label">WORKSPACE</div><button class="nav active" id="browse-nav">▦ <span>수집 데이터</span></button><button class="nav" id="runs-nav">◷ <span>실행 이력</span></button>
+<div class="nav-label source-heading">SOURCES <span id="source-count">0</span></div><div id="source-list"></div>
+<div class="sidebar-foot"><span class="live-dot"></span> 로컬 데이터베이스 <small>저장된 관측값을 조회합니다</small></div></aside>
+<main>
+<header><div class="breadcrumb">Workspace <span>/</span> <strong id="crumb">수집 데이터</strong></div><button id="refresh" class="button">↻ 새로고침</button></header>
+<section class="workspace">
+<div class="page-heading"><div><div class="eyebrow">YOUR SIGNAL, COLLECTED.</div><h1 id="heading">수집 데이터</h1><p id="subtitle">흩어진 소식을 한곳에서 살펴보세요.</p></div><span class="read-only">● 읽기 전용</span></div>
+<div id="error" class="error" role="alert" hidden></div>
+<div class="stats"><article><span>저장된 항목</span><strong id="stat-items">—</strong><small>출처별 최신 데이터</small></article><article><span>수집 소스</span><strong id="stat-sources">—</strong><small>저장된 출처</small></article><article><span>누적 관측값</span><strong id="stat-observations">—</strong><small>반복 수집 이력 포함</small></article><article><span>수집 실행</span><strong id="stat-runs">—</strong><small id="last-run">최근 실행 없음</small></article></div>
+<section id="browse-view">
+<div class="collection-bar"><div><h2>모든 항목 <span id="result-count">0</span></h2><p>제목을 선택하면 상세 정보와 관측 이력을 확인할 수 있습니다.</p></div></div>
+<div class="filters"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="제목, 키워드, CVE 검색…" aria-label="항목 검색"></label><select id="source-filter" aria-label="소스 필터"><option value="">모든 소스</option></select><select id="run-filter" aria-label="실행 필터"><option value="">최신 데이터 전체</option></select></div>
+<div class="list-top"><span id="filter-caption">모든 소스 · 최신 관측순</span><span>출처별 순위와 지표는 서로 다른 의미를 가집니다.</span></div>
+<div id="items" class="items" aria-live="polite"></div>
+</section>
+<section id="runs-view" hidden><div class="collection-bar"><div><h2>수집 실행 기록</h2><p>실행별 수집 건수와 소스 상태를 확인하세요.</p></div></div><div id="runs" class="runs"></div></section>
+<footer class="pagination"><span id="page-info"></span><div><button class="button" id="prev">← 이전</button><button class="button" id="next">다음 →</button></div></footer>
+<div class="workspace-foot">TREND ATLAS <span>수집된 사실을 탐색하고, 다음 신호를 발견하세요.</span></div>
+</section></main>
+<dialog id="detail"><div class="detail-top"><span>ITEM DETAILS</span><button id="close-detail" class="icon-button" aria-label="상세 닫기">✕</button></div><div id="detail-body"></div></dialog>
+</body></html>
