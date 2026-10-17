@@ -6,13 +6,17 @@
 
 압축을 푼 폴더에서 실행하세요.
 
-```powershell
+```bash
 uv run trend_collector.py --config config.toml
 ```
 
+수집 시작 전에 설정 파일 경로, 기본값·명령행 옵션을 반영한 수집 설정,
+활성·비활성 소스와 소스별 설정, EPSS 활성 여부를 섹션별로 읽기 쉽게 출력합니다.
+토큰·비밀번호·API 키 등 민감한 키의 값은 `***`로 가립니다.
+
 처음에는 소량으로 확인할 수 있습니다.
 
-```powershell
+```bash
 uv run trend_collector.py --config config.toml --limit 3
 ```
 
@@ -33,12 +37,71 @@ enabled = false
 
 `uv`가 호환되는 Python을 선택하며, 설치되어 있지 않으면 필요에 따라 다운로드합니다. 별도의 가상환경 생성·활성화 명령은 필요하지 않습니다. [uv 스크립트 실행 안내](https://docs.astral.sh/uv/guides/scripts/)
 
+## 트렌드 분석
+
+수집된 데이터를 분석하는 별도 실행 엔드포인트입니다. 외부 API·LLM 없이
+규칙 기반으로 실행하며 원본 수집 항목과 관측 이력은 수정하지 않습니다.
+
+```bash
+uv run trend_analyzer.py --config config.toml
+uv run trend_viewer.py --config config.toml
+```
+
+뷰어의 **트렌드 분석** 메뉴에서 저장된 분석 실행을 선택할 수 있습니다.
+처음 관측한 항목, 여러 출처에서 관측한 주제, 항목 수 증가, 보안 동향을 필터링하고
+근거 링크·관측 당시 지표·EPSS를 확인합니다. 새 분석 이후에는 새로고침을 누르세요.
+
+- 주제: AI, 개발 도구, 클라우드·인프라, 보안, 하드웨어, 제품·서비스, 기타·미분류
+- 연결 기준: CVE → GitHub 저장소 → 설정된 이름·키워드 → 정규화 URL
+- 동일 항목은 `(source, external_id)`로 중복 제거하고 반복 관측은 별도 집계
+- 동일 항목의 점수·투표·누적 별 등은 소스 내에서만 변화 비교
+- 출처별 점수를 합산한 종합 순위나 원인에 대한 생성형 요약은 제공하지 않음
+
+기본은 현재까지 최근 24시간과 바로 이전 24시간의 비교입니다.
+`[analysis] window_hours = 24` 또는 `--window-hours`로 길이를 바꿀 수 있습니다.
+아래 명령은 **한국 시간 기준 종료된 하루**의 보고서를 만듭니다.
+
+```bash
+uv run trend_analyzer.py --config config.toml --date 2026-10-16
+```
+
+`--date`는 24시간 설정에서만 사용하며 오늘 또는 미래 날짜는 지정할 수 없습니다.
+특정 데이터베이스는 `--database`, 보고서 위치는 `--out`으로 바꿉니다.
+기본 결과는 `collector.output_dir/analysis/<분석ID>/report.md`와 `report.json`에 저장합니다.
+SQLite의 `analysis_runs`는 분석 버전·구간·보고서, `analysis_members`는 항목별 분류 근거와
+연결 식별자를 보존합니다. 재실행은 별도 분석 ID로 저장하여 이전 결과를 유지합니다.
+
+기업·제품 이름의 연결 규칙은 추가·교체할 수 있습니다.
+
+```toml
+[analysis]
+window_hours = 24
+
+[analysis.entities]
+MyTool = ["mytool", "마이툴"]
+```
+
+분류와 연결은 키워드 기반 추정입니다. 같은 이름의 묶음은 동일 사건을 의미하지 않고,
+다중 출처가 독립적인 검증을 뜻하지도 않습니다. 여러 CVE를 포함한 글은 여러 묶음의
+근거가 될 수 있으므로 묶음별 항목 수를 합산하지 마세요. 기존 비IT 항목도 삭제하지
+않으며 맞는 분류가 없으면 미분류에 남습니다.
+
+신규는 최초 공개가 아니라 **수집 범위 내 최초 관측**입니다. 이전 구간 시작까지
+수집 이력이 없거나 비교 가능한 소스가 없으면 증가 신호를 계산하지 않습니다.
+증가량은 양쪽 구간에서 오류 없이 수집된 공통 소스의 고유 항목 수 차이이며,
+수집 빈도·수집 설정·표본 크기 변화의 영향을 받습니다. 인기도의 인과적 상승이나
+시장 전체 동향으로 해석해서는 안 됩니다. 보고서에 소스별 정상·실패 실행 건수를
+함께 보존합니다. 주제 분류는 다중 분류이므로 주제별 건수는 서로 겹칩니다.
+
+구현은 `src/analysis/`의 `classification.py`, `grouping.py`, `signals.py`,
+`engine.py`, `reporting.py`로 나뉩니다.
+
 ## 저장 데이터 조회
 
 수집과 조회는 별도 프로세스입니다. `trend_collector.py`로 데이터를 수집한 뒤
 다음 명령으로 로컬 조회 화면을 실행합니다. 외부 패키지는 필요하지 않습니다.
 
-```powershell
+```bash
 uv run trend_viewer.py --config config.toml
 ```
 
@@ -59,7 +122,7 @@ uv run trend_viewer.py --config config.toml
 
 다른 데이터베이스나 포트를 사용할 수도 있습니다.
 
-```powershell
+```bash
 uv run trend_viewer.py --database data/trends.sqlite3 --port 8780
 ```
 
@@ -93,7 +156,7 @@ uv run trend_viewer.py --database data/trends.sqlite3 --port 8780
 
 ## 보안 트렌드 수집과 EPSS
 
-```powershell
+```bash
 uv run trend_collector.py --config config.toml --limit 20
 ```
 
@@ -138,6 +201,46 @@ CVSS는 심각도, KEV는 확인된 악용, EPSS는 악용 가능성 예측입�
 [보호나라 RSS 안내](https://www.krcert.or.kr/kr/subPage.do?menuNo=205121),
 [FIRST EPSS](https://www.first.org/epss/).
 
+## IT 카테고리 설정
+
+제공된 `config.toml`은 Google Trends·GeekNews·Product Hunt·Hacker News·Reddit·
+Indie Hackers·Disquiet에 `category = "technology"`를 적용합니다. Reddit의 기본
+커뮤니티도 `programming`, `technology`, `netsec`로 변경했습니다. GitHub·Hugging Face와
+보안 전용 소스는 기존 수집 범위 자체가 기술·보안 분야이므로 별도 키워드 필터를
+기본 적용하지 않습니다.
+
+```toml
+[sources.google_trends]
+enabled = true
+geo = "KR"
+category = "technology"
+scan_limit = 500
+include_keywords = ["wasm", "양자컴퓨팅"]
+exclude_keywords = ["연예인"]
+```
+
+`technology`는 로컬의 한·영 IT 키워드 필터입니다. 제목·요약·태그를 검사하며,
+Google Trends에서는 요약에 보존된 관련 기사 제목도 검사합니다. RSS 요청에
+지원 여부가 불명확한 카테고리 파라미터를 붙이지 않습니다. Google Trends는 IT 뉴스
+피드가 아니라 급상승 검색어 피드이므로, 해당 피드에 IT 항목이 없으면 빈 결과가
+정상입니다. [Google Trends 안내](https://support.google.com/trends/answer/3076011?hl=en)
+
+`include_keywords`는 IT 기본 키워드에 추가할 단어이며 `exclude_keywords`는
+포함 조건보다 우선합니다. `category = "all"` 또는 카테고리 설정 생략으로 기본
+IT 키워드 필터를 끌 수 있습니다. 다른 소스에도 같은 설정을 적용할 수 있습니다.
+
+필터를 적용한 소스는 `scan_limit`개까지 후보를 살펴보고, 통과한 항목을
+`collector.limit`개까지 반환합니다. 후보 예산은 최소 `collector.limit`만큼이며,
+원래 피드가 제공하는 항목 수를 늘리거나 과거 데이터를 소급 수집하지는 않습니다.
+기본 후보 예산은 100, Google Trends는 설정에서 500, HN은 요청량을 고려해 60입니다.
+통과한 항목의 `metadata.category_filter`에 적용 방식을 기록하고, 실행 상태의
+`filter`에는 `scanned`, `filtered`, `accepted`를 기록합니다.
+
+필터는 기본 소스 구성 함수 `create_sources`에서 DI 데코레이터로 적용합니다.
+직접 만든 소스에는 `src.categories.CategorySource(source, config)`를 씌워 적용합니다.
+키워드 방식이므로 일부 오분류·누락이 가능하며, 기존 데이터는 삭제하지 않습니다.
+이전 실행 데이터는 조회 화면에 계속 표시됩니다.
+
 ## 인증 설정
 
 Product Hunt·Reddit·GitHub Trending·GitHub Advisories는 공개 HTML 요청을 사용하며
@@ -145,7 +248,7 @@ API 토큰이 필요하지 않습니다. 이 소스들에는 토큰이나 로그
 Hugging Face 공개 모델 조회에는 선택적으로 `HF_TOKEN`을 사용할 수 있습니다.
 `.env` 파일은 자동으로 읽지 않습니다.
 
-```powershell
+```bash
 $env:HF_TOKEN = "발급받은_Hugging_Face_토큰"
 uv run trend_collector.py --config config.toml
 ```
@@ -224,6 +327,7 @@ SQLite의 `items`는 `(source, external_id)` 기준 최신 상태이며 `observa
 ```text
 trend_collector.py       # 수집 실행 엔드포인트
 trend_viewer.py          # 조회 실행 엔드포인트
+trend_analyzer.py        # 분석 실행 엔드포인트
 src/
   __init__.py
   models.py                # Item, URL·시각 정규화, 공통 예외
@@ -315,7 +419,7 @@ days)`와 `trend_collector`의 가져오기도 호환용으로 제공합니다. 
 
 기본 종료 코드는 한 건 이상 저장하면 0입니다. 전체 실패·빈 결과는 1이며, 자동 실행에서 일부 누락도 실패로 감지하려면 `--strict`를 사용하세요.
 
-```powershell
+```bash
 uv run trend_collector.py --config config.toml --strict
 uv run --no-project --python 3.12 python -m unittest discover -s tests -v
 ```

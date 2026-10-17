@@ -4,6 +4,7 @@
 <body>
 <aside class="sidebar"><a class="brand" href="/" aria-label="Trend Atlas 홈"><span class="logo">↗</span><span>trend<span class="brand-light">atlas</span><small>COLLECTION EXPLORER</small></span></a>
 <div class="nav-label">WORKSPACE</div><button class="nav active" id="browse-nav">▦ <span>수집 데이터</span></button><button class="nav" id="runs-nav">◷ <span>실행 이력</span></button>
+<button class="nav" id="analysis-nav">↗ <span>트렌드 분석</span></button>
 <div class="nav-label source-heading">SOURCES <span id="source-count">0</span></div><div id="source-list"></div>
 <div class="sidebar-foot"><span class="live-dot"></span> 로컬 데이터베이스 <small>저장된 관측값을 조회합니다</small></div></aside>
 <main>
@@ -19,7 +20,12 @@
 <div id="items" class="items" aria-live="polite"></div>
 </section>
 <section id="runs-view" hidden><div class="collection-bar"><div><h2>수집 실행 기록</h2><p>실행별 수집 건수와 소스 상태를 확인하세요.</p></div></div><div id="runs" class="runs"></div></section>
-<footer class="pagination"><span id="page-info"></span><div><button class="button" id="prev">← 이전</button><button class="button" id="next">다음 →</button></div></footer>
+<section id="analysis-view" hidden>
+<div class="collection-bar"><div><h2>관측에서 발견한 신호</h2><p>반복 관측을 제외한 고유 항목을 기준으로 비교합니다.</p></div></div>
+<div class="filters"><select id="analysis-select" aria-label="분석 실행 선택"><option value="">최근 분석</option></select><select id="signal-filter" aria-label="분석 신호 필터"><option value="all">모든 묶음</option><option value="new">처음 관측한 항목</option><option value="multi">여러 출처</option><option value="increasing">항목 수 증가</option><option value="security">보안 동향</option></select></div>
+<div id="analysis-summary" class="analysis-summary"></div><div id="analysis-results" class="runs" aria-live="polite"></div>
+</section>
+<footer class="pagination" id="pagination"><span id="page-info"></span><div><button class="button" id="prev">← 이전</button><button class="button" id="next">다음 →</button></div></footer>
 <div class="workspace-foot">TREND ATLAS <span>수집된 사실을 탐색하고, 다음 신호를 발견하세요.</span></div>
 </section></main>
 <dialog id="detail"><div class="detail-top"><span>ITEM DETAILS</span><button id="close-detail" class="icon-button" aria-label="상세 닫기">✕</button></div><div id="detail-body"></div></dialog>

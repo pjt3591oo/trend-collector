@@ -56,7 +56,7 @@ class RedditSource(BaseSource):
     name = 'reddit'
 
     def collect(self, request: CollectionRequest) -> Iterator[Item]:
-        subreddits = self.config.get('subreddits', ['SaaS', 'smallbusiness', 'SideProject'])
+        subreddits = self.config.get('subreddits', ['programming', 'technology', 'netsec'])
         sort = self.config.get('sort', 'new')
         if not isinstance(subreddits, list) or not subreddits or sort not in ('new', 'hot', 'top'):
             raise CollectionError('Reddit requires subreddits and sort=new/hot/top')

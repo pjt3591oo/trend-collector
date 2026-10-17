@@ -51,6 +51,8 @@ def make_handler(repository):
                     if result is None:
                         self.json(404, {'error': '항목을 찾을 수 없습니다.'})
                         return
+                elif url.path == '/api/analysis':
+                    result = repository.analyses(value('id'))
                 else:
                     self.json(404, {'error': '페이지를 찾을 수 없습니다.'})
                     return

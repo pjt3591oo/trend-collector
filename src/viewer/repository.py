@@ -85,3 +85,17 @@ class TrendRepository:
         return {'item': json.loads(row[0]), 'history': [
             {'run_id': h['run_id'], 'observed_at': h['observed_at'], 'metrics': json.loads(h['metrics_json'])}
             for h in history]}
+
+    def analyses(self, analysis_id=''):
+        if not self.database.is_file():
+            return {'rows': [], 'report': None}
+        with self.connect() as db:
+            if not db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='analysis_runs'").fetchone():
+                return {'rows': [], 'report': None}
+            rows = [dict(row) for row in db.execute(
+                'SELECT analysis_id,created_at,window_start,window_end,version FROM analysis_runs ORDER BY created_at DESC LIMIT 100')]
+            if analysis_id:
+                record = db.execute('SELECT report_json FROM analysis_runs WHERE analysis_id=?', (analysis_id,)).fetchone()
+            else:
+                record = db.execute('SELECT report_json FROM analysis_runs ORDER BY created_at DESC LIMIT 1').fetchone()
+        return {'rows': rows, 'report': json.loads(record[0]) if record else None}

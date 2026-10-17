@@ -62,5 +62,13 @@ def create_sources(
     """Compose built-in sources; explicit credentials bypass environment lookup."""
     config = config if config is not None else {}
     credentials = os.environ if credentials is None else credentials
-    return {name: cls(http, config.get(name), credentials=credentials)
-            for name, cls in SOURCE_TYPES.items()}
+    from ..categories import CategorySource
+
+    result = {}
+    for name, cls in SOURCE_TYPES.items():
+        options = config.get(name, {})
+        source = cls(http, options, credentials=credentials)
+        if any(key in options for key in ('category', 'include_keywords', 'exclude_keywords')):
+            source = CategorySource(source, options)
+        result[name] = source
+    return result

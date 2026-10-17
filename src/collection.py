@@ -17,4 +17,9 @@ def collect_source(source: Source, request: CollectionRequest):
         message = str(exc) if isinstance(exc, CollectionError) else f'{type(exc).__name__}: invalid response or configuration'
     if status == 'ok' and not records:
         status, message = 'empty', 'No items returned; check window, filters, or source availability'
-    return list(records.values()), {'status': status, 'count': len(records), 'message': message}
+    result = {'status': status, 'count': len(records), 'message': message}
+    if hasattr(source, 'filter_counts'):
+        result['filter'] = dict(source.filter_counts)
+        if status == 'empty' and source.filter_counts.get('filtered'):
+            result['message'] = 'No items matched the configured category/keywords'
+    return list(records.values()), result

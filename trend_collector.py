@@ -38,6 +38,7 @@ from src.sources import COLLECTORS, SOURCES
 from src.sources import CollectionRequest, HTTPClient, Source, create_sources
 from src.enrichment import Enricher, EPSSEnricher
 from src.collection import collect_source
+from src.config_display import print_config
 
 
 def positive_int(value):
@@ -92,6 +93,22 @@ def main(argv=None, *, sources: Mapping[str, Source] | None = None,
     except (OSError, ValueError, tomllib.TOMLDecodeError) as exc:
         parser.error(str(exc))
     out = args.out or Path(settings.get('output_dir', 'data'))
+    print_config({
+        **config,
+        'config_file': str(args.config.resolve()) if args.config else None,
+        'collector': {
+            'timeout': 20, 'retries': 2, 'request_interval': 1.0,
+            'user_agent': 'TrendCollector/1.0 (personal trend research)',
+            **settings, 'limit': limit, 'days': days, 'max_workers': max_workers,
+            'active_workers': min(max_workers, len(selected)),
+            'output_dir': str(out.resolve()), 'strict': args.strict,
+        },
+        'sources': {name: {**source_cfg.get(name, {}), 'enabled': name in selected}
+                    for name in dict.fromkeys([*source_cfg, *available])},
+        'enrichment': {**config.get('enrichment', {}), 'epss': {
+            **config.get('enrichment', {}).get('epss', {}), 'enabled': enricher is not None,
+        }},
+    })
     out.mkdir(parents=True, exist_ok=True)
     started = now()
     run_id = datetime.now(UTC).strftime('%Y%m%dT%H%M%S') + '_' + uuid.uuid4().hex[:12]

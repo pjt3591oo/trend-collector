@@ -10,17 +10,22 @@ user_agent = "TrendCollector/1.0 (personal trend research)"
 
 [sources.geeknews]
 enabled = true
+category = "technology"
 
 [sources.producthunt]
 enabled = true # Public homepage HTML; no token required
+category = "technology"
 
 [sources.hackernews]
 enabled = true
 feed = "top" # top / new / best / ask / show
+category = "technology"
+scan_limit = 60
 
 [sources.reddit]
 enabled = true # Public HTML; HTTP access restrictions may cause error
-subreddits = ["SaaS", "smallbusiness", "SideProject"]
+subreddits = ["programming", "technology", "netsec"]
+category = "technology"
 sort = "new" # new / hot / top
 time_filter = "week" # Used only when sort = "top"
 
@@ -32,12 +37,16 @@ language = "" # e.g. python, typescript
 [sources.google_trends]
 enabled = true
 geo = "KR" # Country; use US for United States
+category = "technology" # Local keyword filter; RSS category parameters are not assumed to work
+scan_limit = 500 # Examine the whole available feed before applying the output limit
 
 [sources.indiehackers]
 enabled = true
+category = "technology"
 
 [sources.disquiet]
 enabled = true
+category = "technology"
 
 [sources.huggingface]
 enabled = true
@@ -58,3 +67,7 @@ enabled = true
 
 [enrichment.epss]
 enabled = true # CVE risk enrichment; failures keep source records and appear in manifest
+
+[analysis]
+window_hours = 24 # Two adjacent equal windows; collection observations remain unchanged
+# Add entity keywords as [analysis.entities], e.g. MyTool = ["mytool", "마이툴"]
