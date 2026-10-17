@@ -6,7 +6,7 @@ import sqlite3
 import tempfile
 import unittest
 
-from src.analysis.classification import classify
+from src.analysis.classification import CATEGORIES, classify, classify_details
 from src.analysis.engine import analyze
 from src.analysis.grouping import groups
 from src.analysis.reporting import save_analysis
@@ -80,9 +80,9 @@ class AnalysisTests(unittest.TestCase):
     def test_classification_and_groups_are_explainable(self):
         row = self.item(title='Python AI SDK')
         topics = classify(row)
-        self.assertIn('AI', topics)
-        self.assertIn('개발 도구', topics)
-        self.assertIn('python', topics['개발 도구'])
+        self.assertIn('AI·머신러닝', topics)
+        self.assertIn('개발·오픈소스', topics)
+        self.assertIn('python', topics['개발·오픈소스'])
         row['url'] = 'https://github.com/Org/Repo'
         self.assertEqual(groups(row, {})[0][0], 'repo:org/repo')
 
@@ -94,7 +94,7 @@ class AnalysisTests(unittest.TestCase):
         report = analyze(self.path, end=END)
         folder = save_analysis(self.path, report, 'analysis1', Path(self.tmp.name) / 'reports')
         self.assertTrue((folder / 'report.md').is_file())
-        self.assertEqual(json.loads((folder / 'report.json').read_text(encoding='utf-8'))['version'], 'rules-v1')
+        self.assertEqual(json.loads((folder / 'report.json').read_text(encoding='utf-8'))['version'], 'rules-v2')
         saved = repo.analyses('analysis1')['report']
         self.assertEqual(saved['analysis_id'], 'analysis1')
         self.assertEqual(repo.summary()['observations'], before)
@@ -106,6 +106,51 @@ class AnalysisTests(unittest.TestCase):
         report = analyze(self.path, end=END)
         self.assertEqual(report['summary']['items'], 0)
         self.assertEqual(report['trends'], [])
+
+    def test_category_counts_partition_items_and_trends_have_one_primary(self):
+        self.save('current', '2026-10-16T20:00:00+00:00', [
+            self.item(title='AI coding SDK launch'),
+            self.item(id='2', title='PostgreSQL database migration guide', url='https://example.com/data'),
+            self.item(id='3', title='Unrecognized headline', url='https://example.com/unknown')])
+        report = analyze(self.path, end=END)
+        self.assertEqual(tuple(report['summary']['categories']), CATEGORIES)
+        self.assertEqual(sum(report['summary']['categories'].values()), 3)
+        self.assertEqual(report['summary']['categories']['데이터·분석'], 1)
+        self.assertEqual(report['summary']['categories']['기타·분류 검토'], 1)
+        self.assertTrue(all(t['primary_category'] in CATEGORIES for t in report['trends']))
+        self.assertTrue(all(t['primary_category'] not in t['related_categories'] for t in report['trends']))
+
+    def test_ai_launch_has_related_development_and_news_type_with_reasons(self):
+        classification = classify_details(self.item(title='Claude coding launch'))
+        self.assertEqual(classification['primary_category'], 'AI·머신러닝')
+        self.assertIn('개발·오픈소스', classification['related_categories'])
+        self.assertIn('출시·업데이트', classification['news_types'])
+        self.assertIn('claude', classification['category_reasons']['AI·머신러닝'])
+        self.assertIn('launch', classification['news_type_reasons']['출시·업데이트'])
+
+    def test_advisory_category_precedes_ai_and_tutorial_is_independent(self):
+        result = classify_details(self.item(source='github_advisories', title='AI GPU vulnerability'))
+        self.assertEqual(result['primary_category'], '보안·개인정보')
+        self.assertIn('취약점·보안 권고', result['news_types'])
+        data = classify_details(self.item(title='PostgreSQL database guide for cloud servers'))
+        self.assertEqual(data['primary_category'], '데이터·분석')
+        self.assertIn('클라우드·인프라', data['related_categories'])
+        self.assertIn('개발 사례·튜토리얼', data['news_types'])
+
+    def test_existing_members_table_is_upgraded_without_deleting_rows(self):
+        self.save('current', '2026-10-16T20:00:00+00:00', [self.item()])
+        with closing(sqlite3.connect(self.path)) as db, db:
+            db.execute('CREATE TABLE analysis_members (analysis_id TEXT,source TEXT,external_id TEXT,'
+                       'topics_json TEXT,groups_json TEXT,PRIMARY KEY(analysis_id,source,external_id))')
+            db.execute("INSERT INTO analysis_members VALUES ('old','hackernews','1','{}','[]')")
+        report = analyze(self.path, end=END)
+        folder = save_analysis(self.path, report, 'new', Path(self.tmp.name) / 'reports')
+        markdown = (folder / 'report.md').read_text(encoding='utf-8')
+        self.assertIn('## AI·머신러닝', markdown)
+        with closing(sqlite3.connect(self.path)) as db:
+            self.assertEqual(db.execute("SELECT topics_json FROM analysis_members WHERE analysis_id='old'").fetchone()[0], '{}')
+            classification = json.loads(db.execute("SELECT classification_json FROM analysis_members WHERE analysis_id='new'").fetchone()[0])
+            self.assertEqual(classification['primary_category'], 'AI·머신러닝')
 
 
 if __name__ == '__main__':

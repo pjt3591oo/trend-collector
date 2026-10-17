@@ -20,7 +20,66 @@ async function showDetail(item){const serial=++state.detailSerial;const body=$('
 function setView(view){state.view=view;state.page=1;for(const name of ['browse','runs','analysis']){$(name+'-view').hidden=view!==name;$(name+'-nav').classList.toggle('active',view===name);}$('pagination').hidden=view==='analysis';const titles={browse:'수집 데이터',runs:'실행 이력',analysis:'트렌드 분석'};$('heading').textContent=$('crumb').textContent=titles[view];$('subtitle').textContent=view==='analysis'?'새로운 주제와 변화의 근거를 살펴보세요.':view==='browse'?'흩어진 소식을 한곳에서 살펴보세요.':'수집이 어떻게 진행되었는지 확인하세요.';load();}
 let analysisReport=null;
 async function loadAnalysis(){const serial=++state.serial;try{const data=await api('/api/analysis',{id:$('analysis-select').value});if(serial!==state.serial)return;const selected=data.report?.analysis_id||'';$('analysis-select').replaceChildren(option('','최근 분석'));for(const run of data.rows)$('analysis-select').append(option(run.analysis_id,`${date(run.created_at)} · ${run.version}`));$('analysis-select').value=selected;analysisReport=data.report;renderAnalysis();}catch(e){error(e.message);}}
-function renderAnalysis(){const parent=$('analysis-results');parent.replaceChildren();$('analysis-summary').replaceChildren();const report=analysisReport;if(!report){empty(parent,'아직 분석 결과가 없습니다','터미널에서 uv run trend_analyzer.py --config config.toml 을 실행해 주세요.');return;}
-const summary=$('analysis-summary');summary.append(el('p','',`${date(report.window.start)} ~ ${date(report.window.end)} · 고유 항목 ${report.summary.items}건 · 처음 관측 ${report.summary.new_items}건`));summary.append(el('p','',report.coverage.comparable?'공통 정상 수집 소스의 고유 항목 수로 비교합니다. 수집 빈도와 범위의 영향을 받을 수 있습니다.':'이전 비교 기간의 데이터가 부족합니다. 증가 신호를 계산하지 않았습니다.'));const topics=el('div','tags');for(const [topic,count]of Object.entries(report.summary.topics))topics.append(el('span','tag',`${topic} · ${count}`));summary.append(topics);const filter=$('signal-filter').value;const trends=report.trends.filter(t=>filter==='all'||filter==='new'&&t.new_items_only||filter==='multi'&&t.multi_source||filter==='increasing'&&t.increasing||filter==='security'&&t.topics.includes('보안'));summary.append(el('p','',`${trends.length}개 묶음 · 이름으로 연결한 묶음은 같은 사건을 의미하지 않습니다.`));if(!trends.length)empty(parent,'해당 신호가 없습니다','다른 조건을 선택하거나 관측 이력을 더 쌓아 주세요.');for(const trend of trends){const card=el('article','run-card');card.append(el('h2','',trend.name));const badges=el('div','tags');for(const topic of trend.topics)badges.append(el('span','tag',topic));if(trend.new_items_only)badges.append(el('span','tag','처음 관측한 항목'));if(trend.multi_source)badges.append(el('span','tag','여러 출처'));card.append(badges,el('p','analysis-count',`고유 항목 ${trend.items}건 · 출처 ${trend.sources.length}곳 · 이전 구간 ${trend.baseline_items}건${trend.comparable_item_delta===null?'':` · 공통 소스 차이 ${trend.comparable_item_delta>0?'+':''}${trend.comparable_item_delta}건`}`));for(const item of trend.evidence){const evidence=el('div','analysis-evidence');const link=safeLink(item.url,item.title+' ↗');if(link){link.className='evidence-link';evidence.append(link);}else evidence.append(el('strong','',item.title));evidence.append(el('p','',`${label(item.source)} · 관측 ${date(item.observed_at)}`));const signal=metrics(item.metrics);if(signal)evidence.append(el('p','',signal));if(item.metrics?.epss)evidence.append(el('pre','json',JSON.stringify(item.metrics.epss,null,2)));card.append(evidence);}parent.append(card);}if(report.metric_changes.length){const card=el('article','run-card');card.append(el('h2','','동일 항목의 관측 지표 변화'));for(const item of report.metric_changes){const row=el('div','analysis-evidence');row.append(el('strong','',`${label(item.source)} · ${item.title}`));for(const [key,value]of Object.entries(item.metrics))row.append(el('p','',`${key}: ${value.before} → ${value.after} (${value.delta>0?'+':''}${value.delta})`));if(item.rank_improvement)row.append(el('p','',`순위 개선: ${item.rank_improvement}`));card.append(row);}parent.append(card);}const notes=el('article','run-card');notes.append(el('h2','','해석 범위'));for(const note of report.notes)notes.append(el('p','',note));parent.append(notes);}
+function renderAnalysis(){
+  const parent=$('analysis-results'), summary=$('analysis-summary');
+  parent.replaceChildren();summary.replaceChildren();
+  const report=analysisReport;
+  if(!report){empty(parent,'아직 분석 결과가 없습니다','터미널에서 uv run trend_analyzer.py --config config.toml 을 실행해 주세요.');return;}
+  const categories=report.summary.categories;
+  const selectedCategory=$('category-filter').value,selectedType=$('news-type-filter').value;
+  $('category-filter').replaceChildren(option('','모든 카테고리'));
+  $('news-type-filter').replaceChildren(option('','모든 소식 성격'));
+  for(const [category,count]of Object.entries(categories||{}))$('category-filter').append(option(category,`${category} · ${count}개 항목`));
+  for(const [type,count]of Object.entries(report.summary.news_types||{}))$('news-type-filter').append(option(type,`${type} · ${count}개 항목`));
+  $('category-filter').value=Object.hasOwn(categories||{},selectedCategory)?selectedCategory:'';
+  $('news-type-filter').value=Object.hasOwn(report.summary.news_types||{},selectedType)?selectedType:'';
+  $('category-filter').disabled=$('news-type-filter').disabled=!categories;
+  const category=$('category-filter').value,newsType=$('news-type-filter').value;
+  summary.append(el('p','',`${date(report.window.start)} ~ ${date(report.window.end)} · 고유 항목 ${report.summary.items}건 · 처음 관측 ${report.summary.new_items}건`));
+  summary.append(el('p','',report.coverage.comparable?'공통 정상 수집 소스의 고유 항목 수로 비교합니다. 수집 빈도와 범위의 영향을 받을 수 있습니다.':'이전 비교 기간의 데이터가 부족합니다. 증가 신호를 계산하지 않았습니다.'));
+  if(!categories)summary.append(el('p','','이전 분류 버전의 분석입니다. 새 카테고리로 보려면 분석을 다시 실행해 주세요.'));
+  const topics=el('div','tags');
+  for(const [topic,count]of Object.entries(categories||report.summary.topics)){
+    if(categories){const button=el('button','tag category-chip'+(category===topic?' selected':''),`${topic} · ${count}`);button.onclick=()=>{$('category-filter').value=topic;renderAnalysis();};topics.append(button);}
+    else topics.append(el('span','tag',`${topic} · ${count}`));
+  }
+  summary.append(topics);
+  const filter=$('signal-filter').value;
+  const trends=report.trends.filter(t=>(!category||t.primary_category===category)&&(!newsType||(t.news_types||[]).includes(newsType))&&(filter==='all'||filter==='new'&&t.new_items_only||filter==='multi'&&t.multi_source||filter==='increasing'&&t.increasing||filter==='security'&&t.topics.some(topic=>['보안','보안·개인정보'].includes(topic))));
+  summary.append(el('p','',`${trends.length}개 묶음 · 대표 카테고리별로 한 번씩 표시합니다. 관련 분야와 소식 성격은 중복될 수 있습니다.`));
+  if(!trends.length)empty(parent,'해당 조건의 묶음이 없습니다','다른 카테고리나 소식 성격을 선택해 주세요.');
+  const categoryOrder=categories?Object.keys(categories):['이전 분류'];
+  for(const groupCategory of categoryOrder){
+    const members=trends.filter(t=>(t.primary_category||'이전 분류')===groupCategory);
+    if(!members.length)continue;
+    const section=el('section','analysis-category-group');
+    const heading=el('h2','category-heading',groupCategory);heading.append(el('span','tag',`${members.length}개 묶음`));section.append(heading);
+    for(const trend of members)section.append(renderTrendCard(trend));
+    parent.append(section);
+  }
+  const classifications=new Map(report.classifications.map(row=>[JSON.stringify([row.source,row.external_id]),row]));
+  const changes=report.metric_changes.filter(item=>{const c=classifications.get(JSON.stringify([item.source,item.external_id]));return(!category||c?.primary_category===category)&&(!newsType||c?.news_types?.includes(newsType));});
+  if(changes.length){const card=el('article','run-card');card.append(el('h2','','선택 분야 항목의 관측 지표 변화'));for(const item of changes){const row=el('div','analysis-evidence');row.append(el('strong','',`${label(item.source)} · ${item.title}`));for(const [key,value]of Object.entries(item.metrics))row.append(el('p','',`${key}: ${value.before} → ${value.after} (${value.delta>0?'+':''}${value.delta})`));if(item.rank_improvement)row.append(el('p','',`순위 개선: ${item.rank_improvement}`));card.append(row);}parent.append(card);}
+  const notes=el('article','run-card');notes.append(el('h2','','해석 범위'));for(const note of report.notes)notes.append(el('p','',note));parent.append(notes);
+}
+function renderTrendCard(trend){
+  const card=el('article','run-card');card.append(el('h3','trend-title',trend.name));const badges=el('div','tags');
+  for(const topic of trend.related_categories||trend.topics)badges.append(el('span','tag',`관련 · ${topic}`));
+  for(const type of trend.news_types||[])badges.append(el('span','tag news-type-tag',type));
+  if(trend.new_items_only)badges.append(el('span','tag','처음 관측한 항목'));
+  if(trend.multi_source)badges.append(el('span','tag','여러 출처'));
+  card.append(badges,el('p','analysis-count',`고유 항목 ${trend.items}건 · 출처 ${trend.sources.length}곳 · 이전 구간 ${trend.baseline_items}건${trend.comparable_item_delta===null?'':` · 공통 소스 차이 ${trend.comparable_item_delta>0?'+':''}${trend.comparable_item_delta}건`}`));
+  for(const item of trend.evidence){
+    const evidence=el('div','analysis-evidence'),link=safeLink(item.url,item.title+' ↗');
+    if(link){link.className='evidence-link';evidence.append(link);}else evidence.append(el('strong','',item.title));
+    evidence.append(el('p','',`${label(item.source)} · 관측 ${date(item.observed_at)}`));
+    const signal=metrics(item.metrics);if(signal)evidence.append(el('p','',signal));
+    if(item.metrics?.epss)evidence.append(el('pre','json',JSON.stringify(item.metrics.epss,null,2)));
+    if(item.classification){const c=item.classification,details=el('details','classification-reasons');details.append(el('summary','',`분류 근거 · ${c.primary_category}`));for(const [field,terms]of Object.entries(c.category_reasons))details.append(el('p','',`${field}: ${terms.length?terms.join(', '):'매칭 근거 부족'}`));for(const [type,terms]of Object.entries(c.news_type_reasons))details.append(el('p','',`${type}: ${terms.join(', ')}`));evidence.append(details);}
+    card.append(evidence);
+  }
+  return card;
+}
+$('category-filter').onchange=renderAnalysis;$('news-type-filter').onchange=renderAnalysis;
 $('analysis-nav').onclick=()=>setView('analysis');$('analysis-select').onchange=loadAnalysis;$('signal-filter').onchange=renderAnalysis;
 $('browse-nav').onclick=()=>setView('browse');$('runs-nav').onclick=()=>setView('runs');$('refresh').onclick=refresh;$('close-detail').onclick=()=>{$('detail').close();state.detailSerial++;};$('source-filter').onchange=()=>{state.source=$('source-filter').value;state.page=1;load();};$('run-filter').onchange=()=>{state.run=$('run-filter').value;state.page=1;load();};let timer;$('search').oninput=()=>{clearTimeout(timer);timer=setTimeout(()=>{state.query=$('search').value;state.page=1;load();},250);};$('prev').onclick=()=>{state.page--;load();};$('next').onclick=()=>{state.page++;load();};refresh();

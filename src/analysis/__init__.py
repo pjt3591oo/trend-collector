@@ -1,2 +1,2 @@
 """Reproducible, local analysis of saved collection observations."""
-VERSION = 'rules-v1'
+VERSION = 'rules-v2'

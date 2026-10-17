@@ -6,7 +6,7 @@ from pathlib import Path
 import sqlite3
 
 from . import VERSION
-from .classification import classify
+from .classification import CATEGORIES, classify_details, primary_for_group
 from .grouping import DEFAULT_ENTITIES, groups
 from .signals import changes, identity, latest, timestamp
 
@@ -34,6 +34,7 @@ def analyze(database: Path, *, end, window_hours=24, entities=None):
     current_rows = [r for r in observations if timestamp(r['observed_at']) >= start]
     previous_rows = [r for r in observations if timestamp(r['observed_at']) < start]
     current, previous = latest(current_rows), latest(previous_rows)
+    details = {key: classify_details(row) for key, row in current.items()}
     coverage = {'current': {}, 'baseline': {}}
     earliest = min((timestamp(r[0]) for r in runs), default=None)
     for date, statuses in runs:
@@ -65,28 +66,42 @@ def analyze(database: Path, *, end, window_hours=24, entities=None):
         sources = sorted({r['source'] for r in rows})
         is_new = all(first_seen[identity(row)] >= start_jd for row in rows) and not old
         # First sighting of items alone cannot prove that a named topic is new.
-        topics = sorted({topic for row in rows for topic in classify(row)})
+        group_details = [details[identity(row)] for row in rows]
+        topics = sorted({topic for classification in group_details for topic in classification['category_reasons']})
+        primary_category = primary_for_group(group_details)
+        news_types = sorted({tag for classification in group_details for tag in classification['news_types']})
         evidence = [{'source': r['source'], 'external_id': r['external_id'], 'title': r['title'],
-                     'url': r['url'], 'observed_at': r['observed_at'], 'metrics': r.get('metrics', {})} for r in rows]
+                     'url': r['url'], 'observed_at': r['observed_at'], 'metrics': r.get('metrics', {}),
+                     'classification': details[identity(r)]} for r in rows]
         trends.append({'id': bucket['id'], 'name': bucket['name'], 'kind': bucket['kind'], 'topics': topics,
+                       'primary_category': primary_category,
+                       'related_categories': [category for category in topics if category != primary_category],
+                       'news_types': news_types,
                        'items': len(rows), 'baseline_items': len(old), 'sources': sources,
                        'new_items_only': is_new, 'multi_source': len(sources) >= 2,
                        'comparable_item_delta': delta, 'increasing': delta is not None and delta > 0 and old_common > 0,
                        'evidence': evidence})
     trends.sort(key=lambda t: (-len(t['sources']), -t['items'], t['name']))
     topic_counts = {}
+    category_counts = dict.fromkeys(CATEGORIES, 0)
+    news_counts = {}
     classifications = []
     for key, row in current.items():
-        topics = classify(row)
+        classification = details[key]
+        topics = classification['category_reasons']
+        category_counts[classification['primary_category']] += 1
+        for tag in classification['news_types']:
+            news_counts[tag] = news_counts.get(tag, 0) + 1
         for topic in topics:
             topic_counts[topic] = topic_counts.get(topic, 0) + 1
-        classifications.append({'source': key[0], 'external_id': key[1], 'topics': topics,
+        classifications.append({'source': key[0], 'external_id': key[1], 'topics': topics, **classification,
                                 'groups': [g[0] for g in groups(row, entities)]})
     return {'version': VERSION, 'window': {'start': start.isoformat(), 'end': end.isoformat(),
             'baseline_start': baseline.isoformat(), 'hours': window_hours},
             'summary': {'items': len(current), 'observations': len(current_rows), 'baseline_items': len(previous),
                         'new_items': sum(first_seen[key] >= start_jd for key in current),
-                        'sources': len({key[0] for key in current}), 'topics': topic_counts},
+                        'sources': len({key[0] for key in current}), 'topics': topic_counts,
+                        'categories': category_counts, 'news_types': news_counts},
             'coverage': {**coverage, 'comparable': comparable, 'common_sources': sorted(common)},
             'trends': trends, 'metric_changes': changes(current_rows, previous), 'classifications': classifications,
             'rules': {'entities': entities},
@@ -96,4 +111,6 @@ def analyze(database: Path, *, end, window_hours=24, entities=None):
                       '신규는 수집 범위에서 항목이 처음 관측되었다는 의미이며 최초 공개를 뜻하지 않습니다.',
                       '증가량은 공통 수집 소스의 고유 항목 수 차이입니다. 수집 빈도·범위 변화의 영향을 받습니다.',
                       '이전 기간까지 관측 이력이 부족하면 증가 신호를 계산하지 않습니다.',
-                      '주제는 다중 분류이므로 주제별 건수의 합이 전체 항목 수보다 클 수 있습니다.']}
+                      '대표 카테고리는 항목당 하나이며 카테고리별 항목 수의 합은 고유 항목 수와 같습니다.',
+                      '관련 분야와 소식 성격은 여러 개일 수 있습니다. 묶음의 대표 분야는 근거 항목의 다수결로 정합니다.',
+                      '동점은 보안→AI→데이터→개발→하드웨어→인프라→앱 순서로 결정합니다.']}
