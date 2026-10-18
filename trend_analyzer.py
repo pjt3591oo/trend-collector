@@ -5,11 +5,11 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 import sqlite3
 import sys
-import tomllib
 import uuid
 
 from src.analysis.engine import analyze
 from src.analysis.reporting import save_analysis
+from src.environment import load_config
 
 
 def main(argv=None):
@@ -21,7 +21,7 @@ def main(argv=None):
     parser.add_argument('--out', type=Path, help='보고서 폴더; 기본 collector.output_dir/analysis')
     args = parser.parse_args(argv)
     try:
-        config = tomllib.loads(args.config.read_text(encoding='utf-8-sig')) if args.config.exists() else {}
+        config = load_config(args.config, optional=True, sections=('collector', 'analysis'))
         settings = config.get('analysis', {})
         out = Path(config.get('collector', {}).get('output_dir', 'data'))
         database = args.database or out / 'trends.sqlite3'

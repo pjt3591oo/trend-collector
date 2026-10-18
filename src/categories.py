@@ -1,6 +1,5 @@
 """Explicit local topic selection for feeds without reliable native categories."""
 from collections.abc import Iterator
-import re
 
 from .models import Item
 from .sources.base import CollectionRequest, Source
@@ -22,15 +21,7 @@ TECHNOLOGY_TERMS = (
 )
 
 
-def term_pattern(term):
-    # ASCII token boundaries avoid matching AI in "said" or app in "happy",
-    # while allowing Korean suffixes such as "AI가".
-    escaped = re.escape(term)
-    if term[0].isascii() and term[0].isalnum():
-        escaped = r'(?<![a-z0-9])' + escaped
-    if term[-1].isascii() and term[-1].isalnum():
-        escaped += r'(?![a-z0-9])'
-    return re.compile(escaped, re.I)
+from .text_matching import term_pattern
 
 
 class CategorySource:

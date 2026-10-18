@@ -65,9 +65,9 @@ def markdown_report(report):
 def save_analysis(database: Path, report: dict, analysis_id: str, output_dir: Path):
     report = {**report, 'analysis_id': analysis_id, 'created_at': now()}
     folder = output_dir / analysis_id
-    folder.mkdir(parents=True, exist_ok=False)
-    (folder / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
-    (folder / 'report.md').write_text(markdown_report(report), encoding='utf-8')
+    if folder.exists():
+        raise FileExistsError(folder)
+    markdown = markdown_report(report)
     with closing(sqlite3.connect(database)) as db, db:
         db.executescript('''
             CREATE TABLE IF NOT EXISTS analysis_runs (
@@ -91,4 +91,10 @@ def save_analysis(database: Path, report: dict, analysis_id: str, output_dir: Pa
             (analysis_id, row['source'], row['external_id'], json.dumps(row['topics'], ensure_ascii=False),
              json.dumps(row['groups'], ensure_ascii=False), json.dumps(row, ensure_ascii=False))
             for row in report['classifications']])
+    try:
+        folder.mkdir(parents=True, exist_ok=False)
+        (folder / 'report.json').write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+        (folder / 'report.md').write_text(markdown, encoding='utf-8')
+    except OSError:
+        raise OSError('분석은 DB에 저장했지만 보고서 파일을 내보내지 못했습니다. DB에서 조회할 수 있습니다.') from None
     return folder

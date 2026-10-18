@@ -7,38 +7,24 @@ No article-body crawling or automatic posting. Credentials stay in environment v
 from __future__ import annotations
 
 import argparse
+import tomllib
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import sys
 from pathlib import Path
-import tomllib
 from datetime import datetime
 import uuid
 import time
 
-# Compatibility exports for existing callers of this module.
-from src.models import (
-    UTC as UTC, CollectionError as CollectionError, Skipped as Skipped,
-    now as now, digest as digest, iso_date as iso_date,
-    canonical_url as canonical_url, Item as Item,
+# Legacy names remain available; new integrations use src modules.
+from src.collector_compat import (
+    UTC, CollectionError, Skipped, now, digest, iso_date, canonical_url, Item, Node, Document, text, plain, number, xml_text, SafeRedirect, HTTP, save_database, csv_safe, save_exports, parse_geeknews, geeknews, parse_producthunt, producthunt, hackernews, reddit, parse_github, github, parse_google, google_trends, parse_indiehackers, indiehackers, parse_disquiet, disquiet, huggingface, COLLECTORS, SOURCES
 )
-from src.parsing import Node as Node, Document as Document, text as text, plain as plain, number as number, xml_text as xml_text
-from src.http_client import SafeRedirect as SafeRedirect, HTTP as HTTP
-from src.storage import save_database as save_database, csv_safe as csv_safe, save_exports as save_exports
-from src.sources.geeknews import parse_geeknews as parse_geeknews, collect as geeknews
-from src.sources.producthunt import parse_producthunt as parse_producthunt, collect as producthunt
-from src.sources.hackernews import collect as hackernews
-from src.sources.reddit import collect as reddit
-from src.sources.github import parse_github as parse_github, collect as github
-from src.sources.google_trends import parse_google as parse_google, collect as google_trends
-from src.sources.indiehackers import parse_indiehackers as parse_indiehackers, collect as indiehackers
-from src.sources.disquiet import parse_disquiet as parse_disquiet, collect as disquiet
-from src.sources.huggingface import collect as huggingface
-from src.sources import COLLECTORS, SOURCES
 from src.sources import CollectionRequest, HTTPClient, Source, create_sources
 from src.enrichment import Enricher, EPSSEnricher
 from src.collection import collect_source
 from src.config_display import print_config
+from src.environment import load_config
 
 
 def positive_int(value):
@@ -58,7 +44,7 @@ def main(argv=None, *, sources: Mapping[str, Source] | None = None,
     parser.add_argument('--strict', action='store_true', help='Exit 1 if any source fails/is skipped or enrichment fails')
     args = parser.parse_args(argv)
     try:
-        config = tomllib.loads(args.config.read_text(encoding='utf-8-sig')) if args.config else {}
+        config = load_config(args.config, sections=('collector', 'sources', 'enrichment'))
         settings = config.get('collector', {})
         source_cfg = config.get('sources', {})
         available = tuple(sources) if sources is not None else SOURCES

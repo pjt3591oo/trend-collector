@@ -50,12 +50,14 @@ class HTTP:
             return self._get(url, headers, payload)
 
     def _get(self, url: str, headers: dict | None = None, payload: dict | None = None) -> bytes:
-        host = urlsplit(url).netloc
+        host = urlsplit(url).hostname or 'unknown host'
         for attempt in range(self.retries + 1):
             time.sleep(max(0, self.interval - (time.monotonic() - self.last.get(host, 0))))
             self.last[host] = time.monotonic()
             request_headers = {'User-Agent': self.user_agent, 'Accept': '*/*'}
             request_headers.update(headers or {})
+            if any('\r' in str(value) or '\n' in str(value) for value in request_headers.values()):
+                raise CollectionError('Invalid HTTP header configuration')
             data = None
             if payload is not None:
                 data = json.dumps(payload).encode('utf-8')
@@ -84,6 +86,8 @@ class HTTP:
                 if wait > 60:
                     raise CollectionError(f'HTTP {status}: server requests a longer wait; rerun later')
                 time.sleep(wait)
+            except (ValueError, UnicodeError):
+                raise CollectionError('Invalid HTTP request configuration') from None
             except (URLError, TimeoutError, OSError):
                 if attempt == self.retries:
                     raise CollectionError(f'Network or TLS connection failed for {host}') from None

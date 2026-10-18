@@ -1,7 +1,7 @@
 """Strong identifiers first; named entities are topics, not identical events."""
 from urllib.parse import urlsplit
 
-from src.categories import term_pattern
+from src.text_matching import term_pattern
 from src.models import canonical_url
 from src.security import cve_ids
 

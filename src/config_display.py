@@ -1,5 +1,6 @@
 """Readable configuration logging without credential values."""
 import re
+from src.security import safe_error
 
 
 def redact(value):
@@ -8,7 +9,7 @@ def redact(value):
                       else redact(item)) for key, item in value.items()}
     if isinstance(value, list):
         return [redact(item) for item in value]
-    return value
+    return safe_error(value) if isinstance(value, str) else value
 
 
 LABELS = {

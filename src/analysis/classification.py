@@ -1,6 +1,6 @@
 """Eight primary categories with related fields and independent news-type tags."""
 from collections import Counter
-from src.categories import term_pattern
+from src.text_matching import term_pattern
 
 CATEGORIES = (
     'AI·머신러닝', '개발·오픈소스', '클라우드·인프라', '데이터·분석',

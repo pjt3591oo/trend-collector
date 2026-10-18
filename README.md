@@ -1,10 +1,12 @@
-# 트렌드 소스 수집기
+# IT 트렌드 수집·분석·게시 도구
 
-기술·제품·보안 분야의 13개 소스를 같은 데이터 형식으로 수집합니다. Python 3.11 이상에서 실행하며 외부 패키지가 필요하지 않습니다.
+기술·제품·보안 분야의 13개 소스를 수집하고, 저장된 데이터를 분석·조회하며 Threads 게시 초안을 생성합니다.
+프로젝트 실행 환경은 **Python 3.13 이상**입니다. `uv`가 `pyproject.toml`에 정의된
+`python-dotenv`와 `prompt-toolkit` 의존성을 설치합니다.
 
 ## 실행
 
-압축을 푼 폴더에서 실행하세요.
+프로젝트 폴더에서 실행하세요. 처음 실행할 때 `uv`가 프로젝트 환경과 의존성을 준비합니다.
 
 ```bash
 uv run trend_collector.py --config config.toml
@@ -33,7 +35,8 @@ enabled = false
 설정 파일을 지정하면 그 파일에 등록된 소스 중 활성화된 소스만 실행합니다.
 `enabled`를 생략한 등록 소스는 활성화로 취급하며, 파일에 없는 소스는 실행하지 않습니다.
 
-`--config` 없이 실행하면 기존처럼 모든 사용 가능한 소스를 기본 설정으로 실행합니다. 설정 파일과 출력 경로는 현재 작업 폴더를 기준으로 해석합니다.
+`--config` 없이 실행하면 기존처럼 모든 사용 가능한 소스를 기본 설정으로 실행합니다. 설정 파일과 출력 경로는 현재 작업 폴더를 기준으로 해석합니다. 수집기는 `--config`를 생략하면
+현재 폴더의 `config.toml`을 자동으로 적용하지 않습니다. 분석기·뷰어·게시 TUI는 기본으로 `config.toml`을 사용합니다.
 
 `uv`가 호환되는 Python을 선택하며, 설치되어 있지 않으면 필요에 따라 다운로드합니다. 별도의 가상환경 생성·활성화 명령은 필요하지 않습니다. [uv 스크립트 실행 안내](https://docs.astral.sh/uv/guides/scripts/)
 
@@ -124,12 +127,12 @@ MyTool = ["mytool", "마이툴"]
 기존 테이블은 이전 행을 유지한 채 확장합니다.
 
 구현은 `src/analysis/`의 `classification.py`, `grouping.py`, `signals.py`,
-`engine.py`, `reporting.py`로 나뉩니다.
+`engine.py`, `reporting.py`, `repository.py`로 나뉩니다.
 
 ## 저장 데이터 조회
 
 수집과 조회는 별도 프로세스입니다. `trend_collector.py`로 데이터를 수집한 뒤
-다음 명령으로 로컬 조회 화면을 실행합니다. 외부 패키지는 필요하지 않습니다.
+다음 명령으로 로컬 조회 화면을 실행합니다.
 
 ```bash
 uv run trend_viewer.py --config config.toml
@@ -137,7 +140,8 @@ uv run trend_viewer.py --config config.toml
 
 브라우저에서 [로컬 조회 화면](http://127.0.0.1:8765)을 엽니다.
 조회 서버는 `127.0.0.1`에서만 접속을 받고, 설정의 `collector.output_dir` 아래
-`trends.sqlite3`를 읽기 전용으로 엽니다. 서버 종료는 `Ctrl+C`입니다.
+`trends.sqlite3`의 수집·분석 데이터를 읽기 전용 연결로 조회합니다.
+초안 저장·인덱스 보완과 발행 이력 기록은 별도 쓰기 연결을 사용합니다. 서버 종료는 `Ctrl+C`입니다.
 
 - 최신 항목 목록, 키워드·CVE 검색, 소스 필터와 페이지 이동
 - 실행별 수집 건수, 소스 상태와 실패 이유
@@ -145,7 +149,8 @@ uv run trend_viewer.py --config config.toml
 - 항목 상세, 원문·토론 링크, 지표·EPSS·메타데이터와 최근 100건의 관측 이력
 - 새 수집 결과 반영을 위한 새로고침
 
-데이터베이스가 아직 없으면 수집 안내가 표시되며 빈 파일을 생성하지 않습니다.
+데이터베이스가 아직 없으면 조회 화면에 수집 안내가 표시됩니다. 조회만으로 빈 DB를 만들지 않으며,
+초안을 생성하면 설정한 초안 DB를 생성합니다.
 실행 선택 상자에는 최근 100개 실행이 표시됩니다. 그 이전 실행은 실행 이력
 화면에서 페이지를 이동하여 선택할 수 있습니다. 이 화면은 분류·점수화 등
 새로운 분석을 수행하지 않고 저장된 데이터를 보여줍니다.
@@ -276,10 +281,11 @@ IT 키워드 필터를 끌 수 있습니다. 다른 소스에도 같은 설정�
 Product Hunt·Reddit·GitHub Trending·GitHub Advisories는 공개 HTML 요청을 사용하며
 API 토큰이 필요하지 않습니다. 이 소스들에는 토큰이나 로그인 쿠키를 전송하지 않습니다.
 Hugging Face 공개 모델 조회에는 선택적으로 `HF_TOKEN`을 사용할 수 있습니다.
-`.env` 파일은 자동으로 읽지 않습니다.
+선택한 설정 파일과 같은 폴더의 `.env`를 자동으로 읽습니다. 수집에서 `--config`를 생략하면
+현재 작업 폴더의 `.env`를 읽습니다. 시스템 환경 변수는 `.env`보다 우선합니다.
 
 ```bash
-$env:HF_TOKEN = "발급받은_Hugging_Face_토큰"
+export HF_TOKEN="발급받은_Hugging_Face_토큰"
 uv run trend_collector.py --config config.toml
 ```
 
@@ -314,6 +320,11 @@ data/
       items.jsonl
       items.csv
       manifest.json
+  analysis/
+    <분석ID>/
+      report.json
+      report.md
+  publications.sqlite3      # 기본 게시 이력 DB; publishing.journal로 변경
 ```
 
 - `items.jsonl`: 분석·후속 처리용. 항목당 JSON 한 줄입니다.
@@ -359,17 +370,33 @@ SQLite의 `items`는 `(source, external_id)` 기준 최신 상태이며 `observa
 trend_collector.py       # 수집 실행 엔드포인트
 trend_viewer.py          # 조회 실행 엔드포인트
 trend_analyzer.py        # 분석 실행 엔드포인트
+trend_publisher.py       # 게시 TUI 실행 엔드포인트
 src/
   __init__.py
   models.py                # Item, URL·시각 정규화, 공통 예외
   http_client.py           # HTTP 요청, 재시도, 요청 간격, HTML 파싱
   parsing.py               # 공통 HTML/XML 파싱 도구
-  security.py              # CVE 식별자 추출
+  environment.py           # .env 로딩과 기능별 설정 해석
+  security.py              # CVE 식별자 추출과 시크릿 마스킹
+  text_matching.py         # 수집·분석 공통 키워드 매칭
+  categories.py            # 수집 단계 IT 키워드 필터
+  drafts.py                # 공통 초안 생성·저장·검색
+  publications.py          # 발행 이력·상태·수동 확인 저장소
+  publishing.py            # 공통 발행 실행과 중복 방지
+  publication_status.py    # 웹·TUI 공통 상태 이름
+  post_generation.py       # 원문 기반 OpenAI 호환 LLM 생성
+  article_reader.py        # 원문 HTML 본문 추출
+  publisher_tui.py          # 대화형 선택·미리보기
+  collector_compat.py       # 기존 루트 모듈 가져오기 호환
+  channels/                # 출력 계약과 Threads 어댑터
+  analysis/                # 분류·연결·신호·보고서·공통 분석 조회
+  viewer/                  # 웹 조회·초안 생성·발행 API
   enrichment.py            # EPSS 보강
   storage.py               # SQLite, JSONL, CSV 저장
   sources/
     __init__.py            # 소스 타입 등록과 DI 조립
     base.py                # Source, HTTPClient, CollectionRequest
+    compat.py              # SOURCE_TYPES에서 함수형 호환 레지스트리 생성
     geeknews.py
     hackernews.py
     producthunt.py
@@ -452,7 +479,7 @@ days)`와 `trend_collector`의 가져오기도 호환용으로 제공합니다. 
 
 ```bash
 uv run trend_collector.py --config config.toml --strict
-uv run --no-project --python 3.12 python -m unittest discover -s tests -v
+uv run python -m unittest discover -s tests -v
 ```
 
 테스트는 DI, 공통 인터페이스와 함께 URL 그룹화와 출처 보존, 관측 이력, CSV 수식 방지, 시각 변환, 피드·HTML 파싱, 403·429 처리, 대상 HTML 직접 요청, 토큰 없는 HTML 수집, 페이지 이동, 부분 실패 후 저장을 검증합니다.
@@ -465,3 +492,179 @@ uv run --no-project --python 3.12 python -m unittest discover -s tests -v
 - [Reddit 공개 목록](https://old.reddit.com/r/SideProject/new/)
 - [GitHub Trending](https://github.com/trending)
 - [Hugging Face Hub API](https://huggingface.co/docs/hub/api)
+## SNS 출력 채널
+
+분석 보고서를 게시 초안으로 변환하고, 검토한 초안을 활성화된 채널에 게시합니다.
+출력 어댑터는 `src/channels`의 `Channel.validate()`·`Channel.publish(Post)` 계약을 따릅니다.
+`build_channels(settings, factories=...)`로 어댑터 팩토리를 주입할 수 있으며
+Threads 어댑터의 HTTP 전송도 주입 가능합니다. 수집 소스와 게시 채널은 별도입니다.
+
+```bash
+uv run trend_publisher.py
+```
+
+TUI에서 분석과 항목을 선택하면 기존 초안을 먼저 보여줍니다. 기존 초안을 열거나 새로 생성할 수 있습니다. 미리보기 후 별도 게시 확인 화면에서 게시 버튼을 선택해야 전송합니다.
+`config.toml`의 `[channels.threads] enabled = true`로 활성화하고,
+Meta Threads 앱에서 게시 권한(`threads_basic`, `threads_content_publish`)을 가진
+사용자 토큰과 해당 사용자의 숫자 ID를 준비합니다. 토큰 발급과 갱신은 별도로 진행합니다.
+
+```bash
+export THREADS_ACCESS_TOKEN="사용자_액세스_토큰"
+export THREADS_USER_ID="숫자_사용자_ID"
+uv run trend_publisher.py
+```
+
+Threads는 텍스트 컨테이너 생성 후 게시하는 공식 API를 사용합니다.
+현재 구현 범위는 텍스트와 원문 링크이며 이미지, 답글 연결, 예약 게시는 포함하지 않습니다.
+게시 시도는 `[publishing] journal`의 SQLite 파일에 먼저 기록합니다.
+동일 채널의 발행 완료·결과 미확인 본문은 중복 전송하지 않습니다.
+확정 실패(`failed`)는 설정 수정 후 사용자가 다시 발행할 수 있습니다.
+결과 미확인(`pending`)은 계정에서 직접 확인한 뒤 웹/TUI의 발행 결과 확인 기능으로 게시글 ID 또는 미발행을 기록합니다. 확인 이력은 DB에 남습니다.
+여러 계정을 사용하는 경우 계정마다 별도 journal을 지정하세요.
+한 번에 선택할 수 있는 항목은 기본 최대 3개이며 `publishing.max_posts`로 1~20개를 설정합니다. 분석 항목은 URL 기준으로 중복을 제거합니다. 생성 결과는 데이터베이스에 저장합니다.
+
+공식 참고: https://www.postman.com/meta/threads/documentation/dht3nzz/threads-api
+
+
+## 대화형 게시 흐름
+
+```bash
+uv run trend_publisher.py
+```
+
+저장된 분석 목록 → 분석 선택 → 항목 선택 → 기존 초안 열기 또는 신규 초안 생성·저장 → 미리보기 → Threads 게시 확인 순서로 진행합니다.
+기존 초안을 열 때는 LLM을 호출하지 않습니다. 결과 미확인 초안은 계정 확인 후 발행 결과를 기록할 수 있습니다.
+선택한 항목마다 독립 게시글 하나를 생성합니다. 여러 항목은 하나의 연결된 답글 묶음이 아닙니다.
+노란색 ▶와 행 배경은 현재 커서 위치, (*) 또는 [*]는 선택된 항목을 나타냅니다. Tab으로 이동하면 현재 탭·필터·하단 버튼이 노란 배경과 ▶·◀ 기호로 강조됩니다. 방향키로 이동하고 Space로 선택/해제합니다. Tab으로 버튼 사이를 이동하고 Enter로 실행합니다. 미리보기는 방향키와 PageUp/PageDown으로 스크롤할 수 있습니다. 취소 버튼으로 게시 없이 종료하며 초안은 데이터베이스에 보관합니다.
+이전 --publish 옵션은 제거했습니다. TUI는 미리보기 후 별도 게시 확인 화면을 거칩니다. 웹은 저장된 본문을 검토하고 발행 버튼의 확인 창을 승인해야 합니다.
+별도의 초안 JSON 파일은 생성하지 않습니다.
+
+.env의 LLM_BASE_URL, LLM_MODEL, LLM_API_KEY를 설정하세요.
+OpenAI 호환 Chat Completions API를 사용합니다. 클라우드는 HTTPS와 지정한 환경 변수의 API 키가 필요합니다.
+로컬 서버는 LLM_BASE_URL=http://127.0.0.1:1234/v1로 설정하고 LLM_MODEL에 서버가 제공하는 모델 ID를 넣습니다.
+localhost는 API 키 없이도 요청하며 인증이 필요한 로컬 서버는 환경 변수로 키를 전달합니다.
+선택한 항목의 원문 URL에 HTTP 요청을 보내 HTML 본문을 읽습니다. article, main, body 순으로 본문 영역을 선택하고 메뉴·광고 영역·스크립트를 제외합니다.
+제목·분야·출처와 추출된 원문을 LLM에 전달하고, 원문 URL은 생성 후 붙입니다. 본문은 최대 12,000자로 제한하며 잘림 여부를 모델에 전달합니다.
+원문 접근 실패, 너무 짧은 본문, 접근 제한 페이지, 지원하지 않는 문서 형식이면 생성을 중단합니다. JavaScript 렌더링과 PDF 본문은 지원하지 않습니다.
+원문 기반 생성도 사실 정확도를 보장하지 않으므로 미리보기에서 내용을 검토합니다.
+길이 또는 양식 검증에 실패하면 게시하지 않습니다. 실제 모델 호출은 사용자 환경에서 수행합니다.
+
+게시 TUI는 prompt-toolkit을 사용합니다. `uv sync`로 의존성을 설치하고 일반 터미널에서 실행하세요. 원문 읽기·LLM 생성·게시 중에는 진행 화면을 표시합니다.
+
+항목 선택 화면의 카테고리(F1)·소스(F2) 탭에서 필터를 설정할 수 있습니다. 두 조건은 AND로 적용합니다.
+필터 변경 후에도 선택은 유지되며, 화면 상단에 숨겨진 선택 수를 표시합니다.
+필터 초기화는 전체 목록을 표시하고, 선택 해제는 숨겨진 항목을 포함한 모든 선택을 지웁니다.
+
+## 시크릿 관리 (.env)
+
+API 키와 토큰은 config.toml에 값을 쓰지 않고 .env에 보관합니다.
+수집·분석·뷰어·게시 실행 시 선택한 config.toml과 같은 폴더의 .env를 자동으로 읽습니다.
+설정 경로를 생략하는 수집 실행은 현재 폴더의 .env를 읽습니다.
+기존 시스템 환경 변수가 있으면 .env 값보다 우선하며, .env 안의 변수 치환은 수행하지 않습니다.
+
+```bash
+cp .env.example .env
+```
+
+이미 .env가 있다면 복사하지 말고 필요한 항목만 추가하세요.
+.env에서 LLM_API_KEY, THREADS_ACCESS_TOKEN, THREADS_USER_ID, HF_TOKEN 값을 입력합니다.
+로컬 LLM에 인증이 필요 없다면 LLM_API_KEY는 비워 둘 수 있습니다.
+LLM과 Threads의 실제 값은 .env에 두고 config.toml에서 ${환경변수명}으로 참조합니다.
+.env와 .env.*는 Git에서 제외하고 빈 예제인 .env.example만 공유합니다.
+LLM 모델 ID와 API 주소도 .env에서 관리하며, 채널 활성화 등 일반 실행 설정은 config.toml에서 관리합니다.
+
+LLM 환경 변수 예시 (로컬 서버):
+
+```dotenv
+LLM_BASE_URL=http://127.0.0.1:8080/v1
+LLM_MODEL=서버에서_제공하는_모델_ID
+LLM_API_KEY=
+```
+
+클라우드 OpenAI API는 LLM_BASE_URL=https://api.openai.com/v1로 지정하고 LLM_MODEL과 LLM_API_KEY를 설정합니다.
+
+### config.toml에서 환경 변수 참조
+
+```toml
+[publishing.llm]
+base_url = "${LLM_BASE_URL}"
+model = "${LLM_MODEL}"
+api_key = "${LLM_API_KEY}"
+```
+
+실행 시 설정 파일 옆 `.env`를 읽습니다. 수집·분석은 사용하는 설정 섹션만 해석하고,
+뷰어·게시 TUI는 초안 생성 시 LLM 참조를, 게시 시 Threads 참조를 치환합니다. 시스템 환경 변수가 우선합니다.
+참조한 변수가 없으면 변수 이름만 포함한 오류를 표시합니다. 인증 없는 로컬 LLM도 .env에 LLM_API_KEY= 항목은 두세요.
+TOML 파싱 후 값을 치환하므로 키에 따옴표나 역슬래시가 포함되어도 TOML 구조에 영향을 주지 않습니다.
+
+Threads도 동일한 환경 변수 참조 방식을 사용합니다.
+
+```toml
+[channels.threads]
+enabled = false
+access_token = "${THREADS_ACCESS_TOKEN}"
+user_id = "${THREADS_USER_ID}"
+```
+
+실제 값은 .env의 THREADS_ACCESS_TOKEN, THREADS_USER_ID에 입력합니다.
+채널이 비활성화되어 있으면 참조를 해석하지 않으므로 Threads 환경 변수는 없어도 됩니다.
+활성화한 채널로 실제 게시할 때 토큰과 숫자 사용자 ID가 필요합니다.
+
+## 웹 초안 스튜디오
+
+```bash
+uv run trend_viewer.py
+```
+
+사이드바의 게시 초안 메뉴에서 저장된 분석을 선택하고 카테고리·소스로 항목을 필터링합니다.
+체크한 항목으로 초안 생성을 누르면 원문 읽기와 LLM 요청을 수행하고 결과를 SQLite에 저장합니다.
+생성 중 상태를 표시하며 완료된 글은 아래 저장된 초안 목록에서 확인합니다. 초안 생성만으로 게시하지 않으며 저장된 초안의 발행 버튼과 확인 창을 거쳐 게시합니다.
+TUI에서 생성한 초안도 동일한 목록에서 조회합니다. 기존 JSON 초안 파일은 자동 가져오지 않습니다.
+
+기본 저장 위치는 collector.output_dir/trends.sqlite3의 social_drafts 테이블이며
+[publishing] draft_database로 별도 경로를 지정할 수 있습니다.
+뷰어의 --database 지정 시 별도 draft_database가 없다면 해당 DB에 초안을 저장합니다.
+수집·분석 조회 연결은 읽기 전용이며, 초안 저장과 기존 초안의 근거 인덱스 보완은 별도 쓰기 연결로 처리합니다.
+초안에는 분석 ID, 생성 시각, 본문과 근거 항목을 보관하고 시크릿 설정은 저장하지 않습니다.
+웹 생성은 한 번에 하나만 처리하며 API 사용량이 발생할 수 있습니다.
+
+## 웹 발행 API
+
+TUI에서는 항목을 선택한 뒤 기존 초안 목록을 먼저 확인합니다. 생성 시각·본문 일부·발행 상태를 보고 기존 초안을 열거나 새로운 초안 생성을 선택합니다.
+기존 초안을 열 때는 LLM을 호출하지 않습니다. 여러 항목을 선택하면 항목마다 순서대로 처리하며, 기존 묶음 초안에서도 해당 항목의 게시글만 표시합니다.
+발행 완료 또는 결과 미확인 초안은 조회만 하고 중복 발행하지 않습니다.
+
+`GET /api/drafts`와 `GET /api/draft?id=<초안ID>`는 publication_status, published, publications를 반환합니다.
+상태는 draft(미발행), published(모두 발행), partial(일부 발행), pending(전송 중 또는 결과 미확인), failed(확정 실패)입니다.
+각 publications 항목에는 post_index, channel, status, post_id가 포함됩니다.
+
+`POST /api/drafts/publish`는 저장된 초안을 Threads에 실제 발행합니다.
+Content-Type: application/json과 GET /api/draft-session에서 얻은 X-Draft-Token 헤더가 필요합니다.
+
+```json
+{"draft_id": "저장된_초안_ID", "confirmed": true}
+```
+
+본문은 요청으로 받지 않고 DB의 저장된 초안을 사용합니다. channels.threads.enabled=true와 인증 설정이 필요합니다.
+발행 완료·일부 발행·결과 미확인 상태인 초안은 409로 거절합니다.
+확정 실패(`failed`)는 설정을 수정한 뒤 사용자가 다시 발행할 수 있습니다.
+발행 응답에는 갱신된 초안 상태를 반환합니다. 실패 응답의 draft에도 확인 가능한 상태를 포함합니다.
+[publishing] journal DB의 publication_links 테이블에 초안 ID·게시글 순번·채널·본문 해시 연결을 저장합니다.
+기존 발행 기록도 동일 본문 해시로 조회하므로 중복 발행을 방지합니다.
+웹 목록의 Threads에 발행 버튼은 확인 창을 승인한 경우에만 API를 호출합니다.
+
+
+### 조회·저장과 설정 경계
+
+TUI와 웹은 `analysis_runs` DB를 동일하게 조회합니다. 보고서 JSON/Markdown은 DB 커밋 후 내보내는 파일입니다.
+TUI의 분석 DB는 `publishing.analysis_database`로 지정할 수 있으며, 기본값은 `collector.output_dir/trends.sqlite3`입니다.
+`analysis_dir`은 분석 선택 기준으로 사용하지 않습니다. 기존 보고서 파일과 초안 JSON은 삭제하지 않습니다.
+
+초안 근거는 `social_draft_posts`에 인덱싱하며 기존 초안은 시작 시 내용을 보존하고 인덱스를 보완합니다.
+검색·카테고리·소스·발행 상태 필터와 페이지 처리는 DB에서 수행하고 발행 이력은 요청마다 한 번 읽습니다.
+LLM 설정은 초안 생성 시, Threads 설정은 발행 시 환경 변수 참조를 해석합니다. 비활성화된 설정은 키를 요구하지 않습니다.
+수집과 분석은 각각 사용하는 설정 섹션만 해석합니다.
+
+`POST /api/drafts/reconcile`은 `draft_id`, `post_index`, `status`(`published` 또는 `failed`), `confirmed=true`를 받습니다.
+`published`에는 숫자 문자열 `post_id`가 필요합니다. 기존과 동일한 `X-Draft-Token`과 로컬 Origin 검사를 적용하며,
+결과 미확인 항목만 변경합니다. 이 API는 Threads에 게시하지 않습니다.

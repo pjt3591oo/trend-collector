@@ -6,33 +6,19 @@ from collections.abc import Mapping
 from typing import Any
 from .base import CollectionRequest, HTTPClient, Source
 
-from .geeknews import GeekNewsSource, collect as geeknews
-from .producthunt import ProductHuntSource, collect as producthunt
-from .hackernews import HackerNewsSource, collect as hackernews
-from .reddit import RedditSource, collect as reddit
-from .github import GitHubSource, collect as github
-from .google_trends import GoogleTrendsSource, collect as google_trends
-from .indiehackers import IndieHackersSource, collect as indiehackers
-from .disquiet import DisquietSource, collect as disquiet
-from .huggingface import HuggingFaceSource, collect as huggingface
+from .geeknews import GeekNewsSource
+from .producthunt import ProductHuntSource
+from .hackernews import HackerNewsSource
+from .reddit import RedditSource
+from .github import GitHubSource
+from .google_trends import GoogleTrendsSource
+from .indiehackers import IndieHackersSource
+from .disquiet import DisquietSource
+from .huggingface import HuggingFaceSource
 from .bleepingcomputer import BleepingComputerSource
 from .cisa_kev import CISAKEVSource
 from .github_advisories import GitHubAdvisoriesSource
 from .kisa import KISASource
-
-COLLECTORS = {
-    'geeknews': geeknews,
-    'producthunt': producthunt,
-    'hackernews': hackernews,
-    'reddit': reddit,
-    'github': github,
-    'google_trends': google_trends,
-    'indiehackers': indiehackers,
-    'disquiet': disquiet,
-    'huggingface': huggingface,
-}
-
-
 
 SOURCE_TYPES = {
     'geeknews': GeekNewsSource,
@@ -72,3 +58,14 @@ def create_sources(
             source = CategorySource(source, options)
         result[name] = source
     return result
+
+
+# Legacy callers can keep importing the original named function aliases.
+# Both aliases and COLLECTORS derive from the sole SOURCE_TYPES registry.
+from .compat import collectors as _legacy_collectors
+import sys as _sys
+COLLECTORS = _legacy_collectors(SOURCE_TYPES)
+for _name, _type in SOURCE_TYPES.items():
+    if callable(getattr(_sys.modules[_type.__module__], 'collect', None)):
+        globals()[_name] = COLLECTORS[_name]
+del _name, _type, _legacy_collectors, _sys
